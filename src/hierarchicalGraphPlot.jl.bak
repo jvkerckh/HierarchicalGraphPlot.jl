@@ -1,0 +1,177 @@
+using DataStructures
+using StatsBase
+using LightGraphs
+using MetaGraphs
+using Luxor
+
+
+include( "graphPrep.jl" )
+include( "nodeRanks.jl" )
+include( "rankOrder.jl" )
+include( "nodeCoordinates.jl" )
+include( "graphPlot.jl" )
+
+
+# ==========
+# Test code.
+# ==========
+
+
+testGraph = SimpleDiGraph( 10 )
+add_edge!.( testGraph,
+    [ 1, 1, 1, 2, 3, 5, 6, 7, 8, 9 ],
+    [ 2, 3, 4, 4, 4, 6, 7, 5, 9, 8 ] )
+
+# plotGraph( testGraph )
+# plotGraph( testGraph, plotName = "testPlotDown", orientation = :down )
+# plotGraph( testGraph, plotName = "testPlotUp", orientation = :up )
+# plotGraph( testGraph, plotName = "testPlotRight", orientation = :right )
+# plotGraph( testGraph, plotName = "testPlotLeft", orientation = :left )
+
+testGraph2 = SimpleDiGraph( 5 )
+add_edge!.( testGraph2,
+    [ 3, 3, 3, 3, 5, 5, 5, 2, 2, 4 ],
+    [ 1, 2, 4, 5, 1, 2, 4, 1, 4, 1 ] )
+
+# plotGraph( testGraph2, plotName = "testPlot2" )
+# plotGraph( testGraph2, plotName = "testPlot2Down", orientation = :down )
+# plotGraph( testGraph2, plotName = "testPlot2Up", orientation = :up )
+# plotGraph( testGraph2, plotName = "testPlot2Right", orientation = :right )
+# plotGraph( testGraph2, plotName = "testPlot2Left", orientation = :left )
+
+testGraph3 = MetaDiGraph( 10 )
+add_edge!.( testGraph3,
+    [ 1, 1, 1, 2, 3, 5, 6, 7, 8, 9 ],
+    [ 2, 3, 4, 4, 4, 6, 7, 5, 9, 8 ] )
+setEdgeWeight!.( testGraph3, collect( edges( testGraph3 ) ), 5 )
+set_prop!.( testGraph3, collect( edges( testGraph3 ) ), :col, "black" )
+
+# plotGraph( testGraph3, plotName = "testPlot3" )
+# plotGraph( testGraph3, plotName = "testPlot3down", orientation = :down )
+# plotGraph( testGraph3, plotName = "testPlot3up", orientation = :up )
+# plotGraph( testGraph3, plotName = "testPlot3right", orientation = :right )
+# plotGraph( testGraph3, plotName = "testPlot3left", orientation = :left )
+
+function isNorthOf( mgrf::MetaDiGraph, country1::String, country2::String )::Bool
+
+    countryList = get_prop.( mgrf, vertices( mgrf ), :country )
+    return isNorthOf( mgrf, findfirst( countryList .== country1 ),
+        findfirst( countryList .== country2 ) )
+
+end
+
+function isNorthOf( mgrf::MetaDiGraph, country1::Int, country2::Int )::Bool
+
+    lat1 = get_prop( mgrf, country1, :latitude )
+    lat2 = get_prop( mgrf, country2, :latitude )
+
+    if endswith( lat1, "N" ) && endswith( lat2, "S" )
+        return true
+    end
+
+    if endswith( lat1, "S" ) && endswith( lat2, "N" )
+        return false
+    end
+
+    return endswith( lat1, "N" ) ? lat1 > lat2 : lat1 < lat2
+
+end
+
+function processBorders( mgrf::MetaDiGraph, borders::Array{String, 2} )::Void
+
+    countryList = get_prop.( mgrf, vertices( mgrf ), :country )
+
+    for ii in 1:size( borders )[ 1 ]
+        ind1 = findfirst( countryList .== borders[ ii, 1 ] )
+        ind2 = findfirst( countryList .== borders[ ii, 2 ] )
+
+        if isNorthOf( mgrf, ind1, ind2 )
+            add_edge!( mgrf, ind1, ind2 )
+        else
+            add_edge!( mgrf, ind2, ind1 )
+        end
+    end
+
+    return
+
+end
+
+
+testGraph4 = MetaDiGraph( 18 )
+set_prop!.( testGraph4, vertices( testGraph4 ), :country, [ "Ireland",
+    "United Kingdom", "Denmark", "Netherlands", "Germany", "France", "Belgium",
+    "Luxembourg", "Italy", "Spain", "Portugal", "Switzerland", "Poland",
+    "Czechia", "Slovakia", "Austria", "Hungary", "Slovenia" ] )
+set_prop!.( testGraph4, vertices( testGraph4 ), :capital, [ "Dublin", "London",
+    "Copenhagen", "Amsterdam", "Berlin", "Paris", "Brussels", "Luxembourg",
+    "Rome", "Madrid", "Lisbon", "Zürich", "Warsaw", "Prague", "Bratislava",
+    "Vienna", "Budapest", "Ljubljana" ] )
+set_prop!.( testGraph4, vertices( testGraph4 ), :latitude, [ "53° 21' N",
+    "51° 30' N", "55° 43' N", "52° 22' N", "52° 31' N", "48° 51' N",
+    "50° 51' N", "49° 49' N", "41° 54' N", "40° 26' N", "38° 46' N",
+    "46° 57' N", "52° 13' N", "50° 05' N", "48° 09' N", "48° 12' N",
+    "47° 26' N", "46° 03' N" ] )
+
+borders = [ "Ireland" "United Kingdom"
+    "United Kingdom" "France"
+    "Denmark" "Germany"
+    "Germany" "Netherlands"
+    "Germany" "Belgium"
+    "Germany" "Luxembourg"
+    "Germany" "France"
+    "Germany" "Poland"
+    "Germany" "Czechia"
+    "Germany" "Austria"
+    "Germany" "Switzerland"
+    "Netherlands" "Belgium"
+    "Belgium" "Luxembourg"
+    "Belgium" "France"
+    "Luxembourg" "France"
+    "Poland" "Czechia"
+    "Poland" "Slovakia"
+    "Czechia" "Slovakia"
+    "Czechia" "Austria"
+    "Slovakia" "Austria"
+    "Slovakia" "Hungary"
+    "France" "Switzerland"
+    "France" "Italy"
+    "France" "Spain"
+    "Switzerland" "Austria"
+    "Switzerland" "Italy"
+    "Austria" "Hungary"
+    "Austria" "Slovenia"
+    "Hungary" "Slovenia"
+    "Italy" "Slovenia"
+    "Spain" "Portugal" ]
+processBorders( testGraph4, borders )
+
+# plotGraph( testGraph4, plotName = "testPlot4" )
+# plotGraph( testGraph4, plotName = "testPlot4down", orientation = :down )
+# plotGraph( testGraph4, plotName = "testPlot4up", orientation = :up )
+# plotGraph( testGraph4, plotName = "testPlot4right", orientation = :right )
+# plotGraph( testGraph4, plotName = "testPlot4left", orientation = :left )
+
+plotGraph( testGraph4, plotName = "testPlot5", nodeLabel = :country )
+# plotGraph( testGraph4, plotName = "testPlot5down", orientation = :down,
+#     nodeLabel = :country )
+# plotGraph( testGraph4, plotName = "testPlot5up", orientation = :up,
+#     nodeLabel = :country )
+# plotGraph( testGraph4, plotName = "testPlot5right", orientation = :right,
+#     nodeLabel = :country )
+# plotGraph( testGraph4, plotName = "testPlot5left", orientation = :left,
+#     nodeLabel = :country )
+
+nodeInfo = ( :capital, :none, :none, :latitude )
+# plotGraph( testGraph4, 20, plotName = "testPlot6", nodeLabel = :country,
+#     nodeInfo = nodeInfo )
+# plotGraph( testGraph4, 20, plotName = "testPlot6down", orientation = :down,
+#     nodeLabel = :country, nodeInfo = nodeInfo )
+# plotGraph( testGraph4, 20, plotName = "testPlot6up", orientation = :up,
+#     nodeLabel = :country, nodeInfo = nodeInfo )
+# plotGraph( testGraph4, 20, plotName = "testPlot6right", orientation = :right,
+#     nodeLabel = :country, nodeInfo = nodeInfo )
+# plotGraph( testGraph4, 20, plotName = "testPlot6left", orientation = :left,
+#     nodeLabel = :country, nodeInfo = nodeInfo )
+
+info( "All fine." )
+println()
