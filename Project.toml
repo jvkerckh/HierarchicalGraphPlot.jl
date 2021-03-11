@@ -1,14 +1,12 @@
 name = "HierarchicalGraphPlot"
 uuid = "74058bb6-0c38-11ea-314b-23156c1ed705"
 authors = ["Johan Van Kerckhoven <johan.vankerckhoven@gmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
 MetaGraphs = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
-Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
-StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 julia = ">=0.7"

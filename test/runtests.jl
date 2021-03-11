@@ -15,7 +15,6 @@ tStart = now()
 
 include( "graphpreparation.jl" )
 include( "noderanks.jl" )
-include( "rankorder.jl" )
 
 end  # @testset "Full test"
 

@@ -101,22 +101,6 @@ setEdgeWeight!( grf::MetaDiGraph, edge::Tuple{Int, Int}, weight::Real ) =
     setEdgeWeight!( grf, Edge( edge ), weight )
 
 
-function getEdgeSlack( grf::MetaDiGraph, edge::Edge )
-
-    if !( has_prop( grf, edge.src, :rank ) && has_prop( grf, edge.dst, :rank ) )
-        return NaN
-    end  # if !has_edge( grf, edge )
-
-    return get_prop( grf, edge.dst, :rank ) - get_prop( grf, edge.src, :rank )
-
-end  # getEdgeSlack( grf::MetaDiGraph, edge::Edge )
-
-getEdgeSlack( grf::MetaDiGraph, src::Int, dst::Int ) =
-    getEdgeSlack( grf, Edge( src, dst ) )
-getEdgeSlack( grf::MetaDiGraph, edge::Tuple{Int, Int} ) =
-    getEdgeSlack( grf, Edge( edge ) )
-
-
 function getEdgeMinSlack( grf::MetaDiGraph, edge::Edge )
 
     if !has_edge( grf, edge )

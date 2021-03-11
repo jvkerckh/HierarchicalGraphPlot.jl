@@ -1,8 +1,9 @@
 export  generateGraphNodeRanks!
 
-function generateGraphNodeRanks!( grf::MetaDiGraph )::Nothing
+function generateGraphNodeRanks!( grf::MetaDiGraph,
+    isInit::Bool = true )::Nothing
 
-    fTree = generateFeasibleTree!( grf )
+    fTree = generateFeasibleTree( grf, isInit )
     treeRanks = get_prop.( Ref( fTree ), vertices( fTree ), :rank )
 
     while !( (leaveEdge = findLeaveEdge( fTree )) isa Nothing )
@@ -35,17 +36,19 @@ function generateGraphNodeRanks!( grf::MetaDiGraph )::Nothing
     end  # while !isa( edge = findLeaveEdge( fTree ), Nothing )
 
     treeRanks .-= minimum( treeRanks )
-    balanceNodeRanks!( grf, treeRanks )
-    set_prop!( grf, :rankLevels, unique( sort( get_prop.( Ref( grf ),
-        vertices( grf ), :rank ) ) ) )
+    set_prop!.( Ref( grf ), vertices( grf ), :rank, treeRanks )
     return
 
-end  # generateGraphNodeRanks!( grf )
+end  # generateGraphNodeRanks!( grf, isInit )
 
 
-function generateFeasibleTree!( grf::MetaDiGraph )
+function generateFeasibleTree( grf::MetaDiGraph, isInit::Bool )
 
-    generateInitialNodeRanks!( grf )
+    # Generate initial node ranks if needed.
+    if isInit || !all( has_prop.( Ref( grf ), vertices( grf ), :rank ) )
+        generateInitialNodeRanks!( grf )
+    end  # if isInit || ...
+
     graphEdges = collect( edges( grf ) )
     treeRanks = zeros( Float64, nv( grf ) )
     fTree = MetaDiGraph( nv( grf ) )
@@ -59,27 +62,25 @@ function generateFeasibleTree!( grf::MetaDiGraph )
         # Find all edges incident on the current feasible tree.
         validEdges = filter( edge -> xor( edge.src ∈ inTree,
             edge.dst ∈ inTree ), graphEdges )
+        edgeSlacks = map( edge -> get_prop( grf, edge.dst, :rank ) -
+            get_prop( grf, edge.src, :rank ), validEdges )
 
+        # Get all tight edges among incident edges.
+        isTight = edgeSlacks .== getEdgeMinSlack.( Ref( grf ), validEdges )
+        tightEdges = validEdges[ isTight ]
+        tightSlacks = edgeSlacks[ isTight ]
+        
         # If there are no candidates (bad initial ranks), re-initialise the 
         #   node ranks and restart.
-        if isempty( validEdges )
+        if isempty( tightEdges )
             inTree = [ inTree[ 1 ] ]
             generateInitialNodeRanks!( grf )
             continue
-        end  # if isempty( tightestEdges )
+        end  # if isempty( tightEdges )
 
-        # Get the tightest edges
-        edgeSlacks = getEdgeSlack.( Ref( grf ), validEdges )
-
-        # Get the tightest edges among incident edges.
-        edgeTightness = edgeSlacks - getEdgeMinSlack.( Ref( grf ), validEdges )
-        whichTightest = edgeTightness .== minimum( edgeTightness )
-        tightestEdges = validEdges[ whichTightest ]
-        tightSlacks = edgeSlacks[ whichTightest ]
-        
-        # Select tightest edge with minimal slack.
+        # Select tight edge with minimal slack.
         minSlack = minimum( tightSlacks )
-        newEdge = rand( tightestEdges[ tightSlacks .== minSlack ] )
+        newEdge = rand( tightEdges[ tightSlacks .== minSlack ] )
 
         # Find the new node and its rank in the tree.
         isNewDst = newEdge.src ∈ inTree
@@ -103,7 +104,7 @@ function generateFeasibleTree!( grf::MetaDiGraph )
     generateCutValues!( fTree, grf )
     return fTree
 
-end  # generateFeasibleTree!( grf )
+end  # generateFeasibleTree( grf, isInit )
 
 
 function generateInitialNodeRanks!( grf::MetaDiGraph )
@@ -197,84 +198,6 @@ function findLeaveEdge( fTree::MetaDiGraph )
 
 end  # findLeaveEdge( fTree )
 
-
-function balanceNodeRanks!( grf::MetaDiGraph, treeRanks::Vector{Float64} )
-
-    ranksChanged = true
-    possibleRanks = unique( treeRanks )
-    maxRank = maximum( treeRanks )
-    ranksLowerBound = zeros( Float64, nv( grf ) )
-    ranksUpperBound = zeros( Float64, nv( grf ) )
-    nodeBalance = map( vertices( grf ) ) do node
-        return sum( Vector{Float64}( getEdgeWeight.( Ref( grf ),
-            inneighbors( grf, node ), node ) ) ) -
-            sum( Vector{Float64}( getEdgeWeight.( Ref( grf ), node,
-            outneighbors( grf, node ) ) ) )
-    end  # map( vertices( grf ) ) do node
-
-    while ranksChanged
-        ranksChanged = false
-
-        # Identify which nodes can change rank.
-        for node in vertices( grf )
-            ranksLowerBound[ node ] = maximum( vcat( 0,
-                map( tmpNode -> treeRanks[ tmpNode ] + getEdgeMinSlack( grf, tmpNode, node ), inneighbors( grf, node ) ) ) )
-            ranksUpperBound[ node ] = minimum( vcat( maxRank,
-                map( tmpNode -> treeRanks[ tmpNode ] - getEdgeMinSlack( grf, node, tmpNode ), outneighbors( grf, node ) ) ) )
-        end  # for ii in vertices( grf )
-
-        possibleNodes = findall( ranksLowerBound .!= ranksUpperBound )
-
-        if isempty( possibleNodes )
-            continue
-        end  # if isempty( possibleNodes )
-
-        # Find shifting potential of all nodes that can be shifted.
-        shiftPotential = ranksUpperBound[ possibleNodes ] -
-            ranksLowerBound[ possibleNodes ]
-        sortedPotentials = sortperm( shiftPotential, rev = true )
-        ii = 1
-
-        while !ranksChanged && ( ii <= length( possibleNodes ) )
-            node = possibleNodes[ sortedPotentials[ ii ] ]
-
-            # In edges have higher weight.
-            if nodeBalance[ node ] > 0
-                ranksChanged = treeRanks[ node ] > ranksLowerBound[ node ]
-                treeRanks[ node ] = ranksLowerBound[ node ]
-            # Out edges have higher weight.
-            elseif nodeBalance[ node ] < 0
-                ranksChanged = treeRanks[ node ] < ranksUpperBound[ node ]
-                treeRanks[ node ] = ranksUpperBound[ node ]
-            # In and out edges have balanced weights.
-            else
-                # Find ranks with minimal occupancy (not counting node itself).
-                potentialRanks = filter( rank -> ranksLowerBound[ node ] <=
-                    rank <= ranksUpperBound[ node ], possibleRanks )
-                rankOccupancy = map( potentialRanks ) do rank
-                    return count( treeRanks .== rank ) -
-                        ( treeRanks[ node ] == rank ? 1 : 0 )
-                end  # map( potentialRanks ) do rank
-                potentialRanks = potentialRanks[ rankOccupancy .==
-                    minimum( rankOccupancy ) ]
-                
-                # If current rank is not in ranks with minimal occupancy, change
-                #   rank of node.
-                if treeRanks[ node ] ∉ potentialRanks
-                    ranksChanged = true
-                    treeRanks[ node ] = rand( potentialRanks )
-                end  # if treeRanks[ node ] ∉ potentialRanks
-            end  # if nodeBalance[ node ] > 0
-
-            ii += 1
-        end  # while !ranksChanged && ...
-        
-    end  # while ranksChanged
-
-    set_prop!.( Ref( grf ), vertices( grf ), :rank, treeRanks )
-
-end  # balanceNodeRanks!( grf, treeRanks )
-
 # =============
 
 function generateRanks( mgrf::MetaDiGraph, addDummy::Bool = true,
@@ -284,7 +207,7 @@ function generateRanks( mgrf::MetaDiGraph, addDummy::Bool = true,
     rgrf = nothing
 
     # Generate initial feasible tree.
-    fTree = generateFeasibleTree!( mgrf, isInit )
+    fTree = generateFeasibleTree( mgrf, isInit )
     ranks = get_prop.( fTree, vertices( fTree ), :rank )
     treeEdges = collect( edges( fTree ) )
     grfEdges = collect( edges( mgrf ) )
@@ -363,7 +286,7 @@ generateRanks( grf::SimpleDiGraph, addDummy::Bool = true ) =
 
 """
 ```
-generateFeasibleTree!( grf::SimpleDiGraph )
+generateFeasibleTree( grf::SimpleDiGraph )
 ```
 This function generates a feasible tree based on the directed graph 'grf',
 assuming edge weights of 1.0 for each edge.
@@ -372,8 +295,8 @@ This function returns a `MetaDiGraph`, the feasible tree with the cut value of
 each edge stored in the property `:cut`, and the rank of each node stored in the
 property `:rank`.
 """
-generateFeasibleTree!( grf::SimpleDiGraph )::MetaDiGraph =
-    generateFeasibleTree!( MetaDiGraph( grf ), false )
+generateFeasibleTree( grf::SimpleDiGraph )::MetaDiGraph =
+    generateFeasibleTree( MetaDiGraph( grf ), false )
 
 
 """
