@@ -6,7 +6,7 @@ module HierarchicalGraphPlot
     using LightGraphs
     using MetaGraphs
 
-    version = v"0.2.0"
+    version = v"0.2.1"
 
     export versionHGP
     versionHGP() = @info string( "Running version ", version,

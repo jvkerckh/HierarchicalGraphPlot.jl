@@ -67,16 +67,17 @@ function generateFeasibleTree( grf::MetaDiGraph, isInit::Bool )
 
         # Get all tight edges among incident edges.
         isTight = edgeSlacks .== getEdgeMinSlack.( Ref( grf ), validEdges )
+        !any(isTight) && (isTight = edgeSlacks .== minimum(edgeSlacks))  # Insurance!
         tightEdges = validEdges[ isTight ]
         tightSlacks = edgeSlacks[ isTight ]
         
         # If there are no candidates (bad initial ranks), re-initialise the 
         #   node ranks and restart.
-        if isempty( tightEdges )
-            inTree = [ inTree[ 1 ] ]
-            generateInitialNodeRanks!( grf )
-            continue
-        end  # if isempty( tightEdges )
+        # if isempty( tightEdges )
+        #     inTree = [ inTree[ 1 ] ]
+        #     generateInitialNodeRanks!( grf )
+        #     continue
+        # end  # if isempty( tightEdges )
 
         # Select tight edge with minimal slack.
         minSlack = minimum( tightSlacks )
